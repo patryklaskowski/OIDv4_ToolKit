@@ -69,7 +69,6 @@ def main():
         if os.path.isdir(class_path):
           os.chdir(class_path)
           print(f'> Converting annotations for class: {class_dir}')
-          time.sleep(0.5)
           os.chdir('Label')
 
           for _file in tqdm(os.listdir(os.curdir)):
