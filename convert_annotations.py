@@ -1,79 +1,107 @@
+# convert_annotations.py
+
 import os
 import cv2
-import numpy as np
 from tqdm import tqdm
-import argparse
-import fileinput
 
-# function that turns XMin, YMin, XMax, YMax coordinates to normalized yolo format
-def convert(filename_str, coords):
-    os.chdir("..")
-    image = cv2.imread(filename_str + ".jpg")
-    coords[2] -= coords[0]
-    coords[3] -= coords[1]
-    x_diff = int(coords[2]/2)
-    y_diff = int(coords[3]/2)
-    coords[0] = coords[0]+x_diff
-    coords[1] = coords[1]+y_diff
-    coords[0] /= int(image.shape[1])
-    coords[1] /= int(image.shape[0])
-    coords[2] /= int(image.shape[1])
-    coords[3] /= int(image.shape[0])
-    os.chdir("Label")
-    return coords
+def convert(file_name, coords):
+  '''Turns labels from not normalized absolute bbox coordinates:
 
-ROOT_DIR = os.getcwd()
+  <class_name> <x_min> <y_min> <x_max> <y_max>
 
-# create dict to map class names to numbers for yolo
-classes = {}
-with open("classes.txt", "r") as myFile:
-    for num, line in enumerate(myFile, 0):
-        line = line.rstrip("\n")
-        classes[line] = num
-    myFile.close()
-# step into dataset directory
-os.chdir(os.path.join("OID", "Dataset"))
-DIRS = os.listdir(os.getcwd())
+  into normalized (relative to image size) YOLO format coordinates.
 
-# for all train, validation and test folders
-for DIR in DIRS:
-    if os.path.isdir(DIR):
-        os.chdir(DIR)
-        print("Currently in subdirectory:", DIR)
-        
-        CLASS_DIRS = os.listdir(os.getcwd())
-        # for all class folders step into directory to change annotations
-        for CLASS_DIR in CLASS_DIRS:
-            if os.path.isdir(CLASS_DIR):
-                os.chdir(CLASS_DIR)
-                print("Converting annotations for class: ", CLASS_DIR)
-                
-                # Step into Label folder where annotations are generated
-                os.chdir("Label")
+  <object-class> <x> <y> <width> <height>
 
-                for filename in tqdm(os.listdir(os.getcwd())):
-                    filename_str = str.split(filename, ".")[0]
-                    if filename.endswith(".txt"):
-                        annotations = []
-                        with open(filename) as f:
-                            for line in f:
-                                for class_type in classes:
-                                    line = line.replace(class_type, str(classes.get(class_type)))
-                                labels = line.split()
-                                coords = np.asarray([float(labels[1]), float(labels[2]), float(labels[3]), float(labels[4])])
-                                coords = convert(filename_str, coords)
-                                labels[1], labels[2], labels[3], labels[4] = coords[0], coords[1], coords[2], coords[3]
-                                newline = str(labels[0]) + " " + str(labels[1]) + " " + str(labels[2]) + " " + str(labels[3]) + " " + str(labels[4])
-                                line = line.replace(line, newline)
-                                annotations.append(line)
-                            f.close()
-                        os.chdir("..")
-                        with open(filename, "w") as outfile:
-                            for line in annotations:
-                                outfile.write(line)
-                                outfile.write("\n")
-                            outfile.close()
-                        os.chdir("Label")
-                os.chdir("..")
-                os.chdir("..")
-        os.chdir("..")
+  where:
+    (x, y): center of rectangle
+    width, height: rectangle dimentions.
+
+  It assume that called from inside:
+  /content/OIDv4_ToolKit/OID/Dataset/<purpose>/<class>/Label
+  and that actual .jpg images are stored on path:
+  /content/OIDv4_ToolKit/OID/Dataset/<purpose>/<class>
+  '''
+  os.chdir("..")
+  image = cv2.imread(file_name + ".jpg")
+
+  coords[2] -= coords[0]
+  coords[3] -= coords[1]
+  x_diff = int(coords[2]/2)
+  y_diff = int(coords[3]/2)
+  coords[0] = coords[0]+x_diff
+  coords[1] = coords[1]+y_diff
+  coords[0] /= int(image.shape[1])
+  coords[1] /= int(image.shape[0])
+  coords[2] /= int(image.shape[1])
+  coords[3] /= int(image.shape[0])
+
+  os.chdir("Label")
+  return coords
+
+
+def main():
+  # /content/OIDv4_ToolKit
+  ROOT_DIR = os.getcwd()
+  classes = {}
+  with open("classes.txt", "r") as file:
+      for idx, cls in enumerate(file):
+          cls = cls.strip("\n")
+          classes[cls] = idx
+
+  # /content/OIDv4_ToolKit/OID/Dataset
+  toolkit_dataset_dir = os.path.join(ROOT_DIR, 'OID', 'Dataset')
+  os.chdir(toolkit_dataset_dir)
+
+  purpose_dirs = os.listdir(os.curdir)
+  # purpose: {train, test, validation}
+  for purpose in purpose_dirs:
+    purpose_path = os.path.join(toolkit_dataset_dir, purpose)
+    if os.path.isdir(purpose_path):
+      os.chdir(purpose_path)
+      print(f'> Currently in subdirectory: {purpose}')
+
+      # Each purpose may have many class directories
+      class_dirs = os.listdir(os.getcwd())
+      # class_dir: {class_1, class_2_class_3, ...}
+      for class_dir in class_dirs:
+        class_path = os.path.join(purpose_path, class_dir)
+        if os.path.isdir(class_path):
+          os.chdir(class_path)
+          print(f'> Converting annotations for class: {class_dir}')
+          time.sleep(0.5)
+          os.chdir('Label')
+
+          for _file in tqdm(os.listdir(os.curdir)):
+            file_name, file_extension = os.path.splitext(_file)
+            if file_extension.endswith('.txt'):
+              single_image_annotations = []
+
+              # Open _file to get the oryginal coordinates
+              with open(_file, 'r') as f:
+                for line in f:
+                  for key in classes:
+                    # Important thing is that the muli-word labels are separated with " " instead of "_".
+                    line = line.replace(key.replace('_', ' '), str(classes[key]))
+                  # List of 5 values: <class_name> <x_min> <y_min> <x_max> <y_max>
+                  values = line.split()
+                  coords = np.asarray([float(values[1]), float(values[2]), float(values[3]), float(values[4])])
+                  coords = convert(file_name, coords)
+                  values[1], values[2], values[3], values[4] = coords[0], coords[1], coords[2], coords[3]
+                  # New list of 5 values: <object-class> <x> <y> <width> <height>
+                  newline = str(values[0]) + " " + str(values[1]) + " " + str(values[2]) + " " + str(values[3]) + " " + str(values[4])
+                  # Add modified line
+                  single_image_annotations.append(newline)
+
+              # Create new _file on path /content/OIDv4_ToolKit/OID/Dataset/<purpose>/<class>
+              os.chdir("..")
+              with open(_file, "w") as outfile:
+                for line in single_image_annotations:
+                  outfile.write(f'{line}\n')
+              os.chdir("Label")
+
+
+  os.chdir(ROOT_DIR)
+
+if __name__ == '__main__':
+  main()
