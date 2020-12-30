@@ -84,7 +84,7 @@ def main():
                     line = line.replace(key.replace('_', ' '), str(classes[key]))
                   # List of 5 values: <class_name> <x_min> <y_min> <x_max> <y_max>
                   values = line.split()
-                  coords = np.asarray([float(values[1]), float(values[2]), float(values[3]), float(values[4])])
+                  coords = [float(values[1]), float(values[2]), float(values[3]), float(values[4])]
                   coords = convert(file_name, coords)
                   values[1], values[2], values[3], values[4] = coords[0], coords[1], coords[2], coords[3]
                   # New list of 5 values: <object-class> <x> <y> <width> <height>
